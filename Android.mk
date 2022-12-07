@@ -4,7 +4,7 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE_TAGS := optional
 
-LOCAL_SRC_FILES := NdkCamera.cpp
+LOCAL_SRC_FILES := main_NdkCamera.cpp NdkCamera.cpp NdkSurface.cpp
 
 LOCAL_C_INCLUDES := frameworks/av/include \
 					frameworks/native/include \

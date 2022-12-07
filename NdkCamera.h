@@ -1,7 +1,14 @@
 #ifndef __NDK_CAMERA_JUNSXU__
 
-#include <camera/Camera.h>
+#ifdef LOG_TAG
+#undef LOG_TAG
+#define LOG_TAG "ndkcamera"
+#endif
 
+#define JUNS_LOGI(fmt, msg...)   ALOGI("%s(%d): " fmt, __FUNCTION__, __LINE__, ##msg)
+#define JUNS_LOGE(fmt, msg...)   ALOGE("%s(%d): " fmt, __FUNCTION__, __LINE__, ##msg)
+
+#include <camera/Camera.h>
 namespace android {
 
 class NdkCamera: public CameraListener
