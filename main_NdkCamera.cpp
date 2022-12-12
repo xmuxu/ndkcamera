@@ -44,12 +44,12 @@ void parseArgs(int argc, char **argv) {
    while (true) {
        int index = 0;
        static struct option mOptions[] = {
-           {"index",        required_argument  , 0, 'i' },
-           {"preview",      required_argument  , 0, 'p' },
-           {"capture pic",   required_argument , 0, 'c' },
-           {"video recording",required_argument, 0, 'v' },
-           {"help",           no_argument,       0, 'h' },
-           {0,                0,                 0,  0  }
+           {"index",                    required_argument , 0, 'i' },
+           {"preview frame callback",   required_argument , 0, 'p' },
+           {"capture pic",              required_argument , 0, 'c' },
+           {"video recording",          required_argument , 0, 'v' },
+           {"help",                     no_argument ,       0, 'h' },
+           {0,                          0 ,                 0,  0  }
        };
 
        c = getopt_long(argc, argv, "i:p:c:v:h", mOptions, &index);
@@ -139,7 +139,9 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    camera->setPreviewCallbackFlags(CAMERA_FRAME_CALLBACK_FLAG_BARCODE_SCANNER);
+    if (camInfo.preview) {
+        camera->setPreviewCallbackFlags(CAMERA_FRAME_CALLBACK_FLAG_CAMERA);
+    }
 
     // get native window surface
     sp<IGraphicBufferProducer> gbp;
