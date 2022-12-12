@@ -1,10 +1,10 @@
 
-#include "NdkCamera.h"
 #include <gui/GLConsumer.h>
 #include <gui/Surface.h>
 #include <camera/Camera.h>
 #include <binder/IMemory.h>
 #include <log/log.h>
+#include "NdkCamera.h"
 
 using namespace android;
 
@@ -15,7 +15,7 @@ NdkCamera::NdkCamera(const sp<Camera>& camera)
 
 void NdkCamera::notify(int32_t msgType, int32_t ext1, int32_t ext2)
 {
-    ALOGI("notify msgType %d, ext1 %d, ext2 %d", msgType, ext1, ext2);
+    ALOGI("notify msgType 0x%x, ext1 %d, ext2 %d", msgType, ext1, ext2);
 }
 
 void NdkCamera::copyAndPost(const sp<IMemory>& dataPtr, int msgType)
@@ -26,16 +26,22 @@ void NdkCamera::copyAndPost(const sp<IMemory>& dataPtr, int msgType)
     uint8_t *heapBase = (uint8_t*)heap->base();
     uint8_t* data = heapBase + offset;
     
-    ALOGI("copyAndPost: off=%zd, size=%zu, data %p", offset, size, data);
+    ALOGI("copyAndPost: off=%zd, size=%zu, data %p, msgType 0x%x", offset, size, data, msgType);
 }
 
 void NdkCamera::postData(int32_t msgType, const sp<IMemory>& dataPtr,
                                 camera_frame_metadata_t *metadata)
 {
+    if (msgType == CAMERA_MSG_COMPRESSED_IMAGE) {
+        if (mCamera->startPreview() != NO_ERROR) {
+            JUNS_LOGE("startPreview failed");
+            return;
+        }
+    }
+
     int32_t dataMsgType = msgType & ~CAMERA_MSG_PREVIEW_METADATA;
 
     copyAndPost(dataPtr, dataMsgType);
-    ALOGI("dataMsgType 0x%X", dataMsgType);
 }
 
 void NdkCamera::postDataTimestamp(nsecs_t timestamp, int32_t msgType, const sp<IMemory>& dataPtr)

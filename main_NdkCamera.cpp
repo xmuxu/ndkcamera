@@ -3,8 +3,12 @@
 #include <gui/Surface.h>
 #include <camera/Camera.h>
 #include <binder/IMemory.h>
+#include <binder/ProcessState.h>
 #include <log/log.h>
 #include <getopt.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "NdkSurface.h"
 #include "NdkCamera.h"
@@ -26,9 +30,10 @@ void help() {
 
 typedef struct cameraInfo_s {
     int camId;
-    int preview;
-    int capture;
-    int videRec;
+    bool preview;
+    bool capture;
+    bool videRec;
+    sp<Camera> camera;
 } cameraInfo_t;
 
 static cameraInfo_t camInfo;
@@ -56,13 +61,13 @@ void parseArgs(int argc, char **argv) {
                camInfo.camId = atoi(optarg);
                break;
            case 'p':
-               camInfo.preview = atoi(optarg);
+               camInfo.preview = !!(atoi(optarg));
                break;
            case 'c':
-               camInfo.capture = atoi(optarg);
+               camInfo.capture = !!(atoi(optarg));
                break;
            case 'v':
-               camInfo.videRec = atoi(optarg);
+               camInfo.videRec = !!(atoi(optarg));
                break;
            case 'h':
            default:
@@ -72,12 +77,27 @@ void parseArgs(int argc, char **argv) {
 }
 
 
+void *threadRun(void *arg)
+{
+    cameraInfo_t* localCamInfo = (cameraInfo_t*)arg;
+
+    int msgType = CAMERA_MSG_COMPRESSED_IMAGE;
+    if (localCamInfo->camera->takePicture(msgType) != NO_ERROR) {
+        JUNS_LOGE("takePicture failed");
+        return NULL;
+    }
+
+    return NULL;
+}
+
 int main(int argc, char** argv) {
     sp<Camera> camera;
+    pthread_t thd;
 
     parseArgs(argc, argv);
 
-    camera = Camera::connect(camInfo.camId, String16("junsxu"), Camera::USE_CALLING_UID, Camera::USE_CALLING_PID);
+    camera = camInfo.camera = Camera::connect(camInfo.camId, String16("junsxu"),
+                Camera::USE_CALLING_UID, Camera::USE_CALLING_PID);
     // make sure camera hardware is alive
     if (camera->getStatus() != NO_ERROR) {
         return NO_INIT;
@@ -96,8 +116,8 @@ int main(int argc, char** argv) {
         return rc;
     }
 
-    JUNS_LOGI("cameraInfo.facing %d, cameraInfo.orientation %d",
-               cameraInfo.facing, cameraInfo.orientation);
+    JUNS_LOGI("camera facing %s, orientation %d",
+               cameraInfo.facing ? "FRONT":"BACK", cameraInfo.orientation);
 
     if (cameraInfo.facing == CAMERA_FACING_FRONT) {
         cameraInfo.orientation = 270;
@@ -112,6 +132,14 @@ int main(int argc, char** argv) {
                 strerror(-rc), rc);
         return rc;
     }
+
+    String8 params8 = camera->getParameters();
+    if (camera->setParameters(params8) != NO_ERROR) {
+        JUNS_LOGE("setParameters failed");
+        return -1;
+    }
+
+    camera->setPreviewCallbackFlags(CAMERA_FRAME_CALLBACK_FLAG_BARCODE_SCANNER);
 
     // get native window surface
     sp<IGraphicBufferProducer> gbp;
@@ -132,7 +160,17 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    while(true) usleep(1000*1000);
+    if (camInfo.capture) {
+        pthread_create(&thd, NULL, &threadRun, &camInfo);
+        pthread_join(thd, NULL);
+    }
+
+    // very important, Start Binder thread pool. ndkcamera needs to be able to receive
+    // messages from cameraservice.
+
+    ProcessState::self()->startThreadPool();
+
+    while(true) usleep(60*1000*1000);
 
     return 0;
 }
