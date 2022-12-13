@@ -7,11 +7,11 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := main_NdkCamera.cpp NdkCamera.cpp NdkSurface.cpp
 
 LOCAL_C_INCLUDES := frameworks/av/include \
-					frameworks/native/include \
-					frameworks/base/include/ui
+                    frameworks/native/include \
+                    frameworks/base/include/ui
 
 LOCAL_SHARED_LIBRARIES:= libui libgui libutils libcutils \
-						 libbinder libcamera_client liblog
+                         libbinder libcamera_client liblog libmedia
 
 LOCAL_CFLAGS := -Wall -Werror -Wno-unused-parameter
 

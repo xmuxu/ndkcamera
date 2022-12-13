@@ -2,6 +2,7 @@
 #include <gui/GLConsumer.h>
 #include <gui/Surface.h>
 #include <camera/Camera.h>
+#include <media/mediarecorder.h>
 #include <binder/IMemory.h>
 #include <binder/ProcessState.h>
 #include <log/log.h>
@@ -90,9 +91,130 @@ void *threadRun(void *arg)
     return NULL;
 }
 
-int main(int argc, char** argv) {
+// refer to
+// frameworks/base/media/java/android/media/MediaRecorder.java
+// frameworks/base/media/jni/android_media_MediaRecorder.cpp
+int cameraVideoRecording()
+{
+    status_t rc;
+
+    sp<Camera> mCamera = camInfo.camera;
+
+    mCamera->unlock();
+
+    sp<MediaRecorder> mr = new MediaRecorder(String16("ndkcamera"));
+
+    mr->setClientName(String16("ndkcamera"));
+    rc = mr->setCamera(mCamera->remote(), mCamera->getRecordingProxy());
+    if (rc != NO_ERROR) {
+        JUNS_LOGE("error");
+        return rc;
+    }
+
+    // system/media/audio/include/system/audio-base.h
+    rc = mr->setAudioSource(AUDIO_SOURCE_CAMCORDER);
+    if (rc != NO_ERROR) {
+        JUNS_LOGE("error");
+        return rc;
+    }
+
+    rc = mr->setVideoSource(VIDEO_SOURCE_CAMERA);
+    if (rc != NO_ERROR) {
+        JUNS_LOGE("error");
+        return rc;
+    }
+
+    rc = mr->setOutputFormat(OUTPUT_FORMAT_MPEG_4);
+    if (rc != NO_ERROR) {
+        JUNS_LOGE("error");
+        return rc;
+    }
+
+    rc = mr->setAudioEncoder(AUDIO_ENCODER_AAC);
+    if (rc != NO_ERROR) {
+        JUNS_LOGE("error");
+        return rc;
+    }
+
+    rc = mr->setVideoEncoder(VIDEO_ENCODER_H264);
+    if (rc != NO_ERROR) {
+        JUNS_LOGE("error");
+        return rc;
+    }
+
+    mr->setVideoSize(1920, 1080);
+    mr->setVideoFrameRate(30);
+
+    char params[128];
+    sprintf(params, "video-param-encoding-bitrate=%d", 6*1024*1024);
+    mr->setParameters(String8(params));
+
+    sprintf(params, "max-duration=%d", 0);
+    mr->setParameters(String8(params));
+
+    sprintf(params, "audio-param-sampling-rate=%d", 48000);
+    mr->setParameters(String8(params));
+
+    sprintf(params, "audio-param-number-of-channels=%d", 1);
+    mr->setParameters(String8(params));
+
+    sprintf(params, "audio-param-encoding-bitrate=%d", 96000);
+    mr->setParameters(String8(params));
+
+    int fd = open("/sdcard/Movies/test.mp4", O_RDWR+O_CREAT, 0);
+    rc = mr->setOutputFile(fd);
+    if (rc != NO_ERROR) {
+        JUNS_LOGE("error");
+        return rc;
+    }
+
+    rc = mr->prepare();
+    if (rc != NO_ERROR) {
+        JUNS_LOGE("error");
+        return rc;
+    }
+
+    rc = mr->start();
+    if (rc != NO_ERROR) {
+        JUNS_LOGE("error");
+        return rc;
+    }
+
+
+    sleep(5);
+
+    rc = mr->stop();
+    if (rc != NO_ERROR) {
+        JUNS_LOGE("error");
+        return rc;
+    }
+
+    rc = mr->reset();
+    if (rc != NO_ERROR) {
+        JUNS_LOGE("error");
+        return rc;
+    }
+
+    rc = mr->release();
+    if (rc != NO_ERROR) {
+        JUNS_LOGE("error");
+        return rc;
+    }
+
+    mCamera->lock();
+    close(fd);
+
+    return NO_ERROR;
+}
+
+int main(int argc, char** argv)
+{
     sp<Camera> camera;
     pthread_t thd;
+
+    // very important, Start Binder thread pool. ndkcamera needs to be able to receive
+    // messages from cameraservice.
+    ProcessState::self()->startThreadPool();
 
     parseArgs(argc, argv);
 
@@ -167,13 +289,17 @@ int main(int argc, char** argv) {
         pthread_join(thd, NULL);
     }
 
-    // very important, Start Binder thread pool. ndkcamera needs to be able to receive
-    // messages from cameraservice.
-
-    ProcessState::self()->startThreadPool();
+    if (!camInfo.capture && camInfo.videRec) {
+        rc = cameraVideoRecording();
+        if (rc != NO_ERROR) {
+            JUNS_LOGE("cameraVideoRecording failed");
+            return -1;
+        }
+    }
 
     while(true) usleep(60*1000*1000);
+    //context->decStrong((void*)context.get());
 
-    return 0;
+    return NO_ERROR;
 }
 
